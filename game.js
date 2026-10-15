@@ -10,28 +10,31 @@ const player = {
     height: 48,
     velocityY:0,
     gravity : 0.6,
-    jumpStrength:-14,
+    jumpStrength:-12,
     onGround:false,
     jumps:0
 };
+let gameStarted = false;
 const obstacles = [];
 const particles= [];
 const coins=[];
 let coinSpawnTimer= 0;
-const obstacleSpeed = 3;
+let obstacleSpeed = 3;
 let spawnTimer = 0;
 let spawnInterval = 100;
 let gameOver =false;
 let score =0;
 let distance =0;
 let combo = 0;
+let coinsCollected = 0;
+
 document.addEventListener("keydown",function(event)
 {
     if(event.code==="KeyR"&& gameOver)
     {
         restartGame();
     }
-    if(event.code === "Space") 
+    if(event.code === "Space" && gameStarted) 
     {
         event.preventDefault();
         if(player.jumps<2 && !gameOver)
@@ -55,6 +58,8 @@ function updatePlayer() {
     distance += 0.1;
     score +=0.1;
 }
+
+
 function spawnObstacle()
 {
     const height = Math.random()* 20 +25;
@@ -68,27 +73,7 @@ function spawnObstacle()
     };
     obstacles.push(obstacle);
 }
-function spawnObstaclePattern() {
-    const pattern = Math.floor(Math.random()*3);
-    if(pattern === 0)
-    {
-        spawnObstacle();
-        obstacles[obstacles.length-1].x +=100;
-        spawnObstacle();
-    }
-    else {
-        const height = Math.random() * 10 + 40;
-        const width = Math.random() * 10 + 25;
 
-        obstacles.push({
-            x: canvas.width,
-            y: groundY - height,
-            width: width,
-            height: height,
-            passed: false
-        });
-    }
-}
 function spawnCoin(){
     const coin={
         x: canvas.width,
@@ -97,6 +82,44 @@ function spawnCoin(){
     };
     coins.push(coin);
 }
+
+function playCoinSound() {
+    const audioContext = new (
+        window.AudioContext || window.webkitAudioContext
+    )();
+
+    const oscillator = audioContext.createOscillator();
+    const gain = audioContext.createGain();
+
+    oscillator.type = "sine";
+
+    oscillator.frequency.setValueAtTime(
+        880,
+        audioContext.currentTime
+    );
+
+    oscillator.frequency.exponentialRampToValueAtTime(
+        1320,
+        audioContext.currentTime + 0.1
+    );
+
+    gain.gain.setValueAtTime(0.2, audioContext.currentTime);
+    gain.gain.exponentialRampToValueAtTime(
+        0.001,
+        audioContext.currentTime + 0.15
+    );
+
+    oscillator.connect(gain);
+    gain.connect(audioContext.destination);
+
+    oscillator.start();
+    oscillator.stop(audioContext.currentTime + 0.15);
+
+    oscillator.onended = () => {
+        audioContext.close();
+    };
+}
+
 function updateCoins() {
     coinSpawnTimer ++ ;
     if(coinSpawnTimer >=150) {
@@ -105,10 +128,19 @@ function updateCoins() {
     }
     for(let i= coins.length -1; i>=0;i--) {
         coins[i].x -= obstacleSpeed;
-        if(coins[i].x+coins[i].radius<0)
-        {
-            coins.splice(i,1);
-        }
+        
+    
+    if(
+        player.x< coins[i].x + coins[i].radius &&
+        player.x + player.width > coins[i].x - coins[i].radius &&
+        player.y < coins[i].y + coins[i].radius &&
+        player.y+player.height > coins[i].y - coins[i].radius
+    ){
+        coinsCollected++;
+        playCoinSound();
+        coins.splice(i,1);
+        continue;
+    }
     }
 }
 function drawCoins() {
@@ -166,11 +198,13 @@ function drawParticles(){
     ctx.shadowBlur =0;
 }
 function updateObstacles() {
+    obstacleSpeed = 3+ distance * 0.02;
     spawnTimer++;
     if(spawnTimer >= spawnInterval) {
-        spawnObstaclePattern();
+        spawnObstacle();
         spawnTimer=0;
-        spawnInterval = Math.floor(Math.random()*50)+80;
+        spawnInterval = Math.max( 35,
+        Math.floor(Math.random()*30)+70 - Math.floor(distance/5));
     }
     for(let i= obstacles.length -1; i>=0;i--){
         obstacles[i].x -= obstacleSpeed;
@@ -185,12 +219,46 @@ function updateObstacles() {
             obstacles[i].passed = true;
             score += 100;
             combo++;
+            const notes = [330, 392, 440, 523, 587, 659];
+            const frequency = notes[(combo - 1) % notes.length];
+
+            const type = combo % 2 === 1 ? "acoustic" : "electric";
+
+            playGuitarSound(frequency, type);
+            
         }
         if(obstacles[i].x + obstacles[i].width <0){
             obstacles.splice(i,1);
         }
     }
 }
+
+function playGuitarSound(frequency, type = "acoustic") {
+    const audio = new (window.AudioContext || window.webkitAudioContext)();
+
+    const oscillator = audio.createOscillator();
+    const gain = audio.createGain();
+
+    oscillator.type = type === "electric" ? "sawtooth" : "triangle";
+    oscillator.frequency.value = frequency;
+
+    oscillator.connect(gain);
+    gain.connect(audio.destination);
+
+    const now = audio.currentTime;
+
+    // Plucked-string envelope
+    gain.gain.setValueAtTime(0.3, now);
+    gain.gain.exponentialRampToValueAtTime(0.001, now + 1);
+
+    oscillator.start(now);
+    oscillator.stop(now + 1);
+
+    oscillator.onended = function () {
+        audio.close();
+    };
+}
+
 function checkCollision(player,obstacle) {
     return (
         player.x < obstacle.x + obstacle.width &&
@@ -240,6 +308,16 @@ function drawStats(){
     ctx.fillText("Distance:"+Math.floor(distance)+"m",20,55);
     ctx.fillText("Combo: "+combo,20,80);
 }
+function drawCoin() {
+    ctx.fillStyle = "#ffd700";
+    ctx.font = "bold 22px Arial";
+    ctx.shadowColor="#ffd700";
+    ctx.shadowBlur=12;
+    ctx.textAlign = "right";
+    ctx.fillText("COINS:" + coinsCollected,canvas.width-20,60);
+    ctx.textAlign="left";
+    ctx.shadowBlur = 0;
+}
 function drawGame() {
     ctx.clearRect(0,0,canvas.width,canvas.height);
     drawGround();
@@ -248,6 +326,7 @@ function drawGame() {
     drawParticles();
     drawCoins();
     drawStats();
+    drawCoin();
 }
 function drawGameOver() {
     ctx.fillStyle ="white";
@@ -270,21 +349,41 @@ function restartGame(){
     score=0;
     distance=0;
     combo=0;
-    gameLoop();
+    player.jumps = 0;
+    particles.length = 0;
+    coins.length = 0;
+    coinSpawnTimer = 0;
+    spawnInterval = 100;
+    obstacleSpeed = 3;
+    coinsCollected=0;
+    
 }
-function gameLoop()
-{
-    if(!gameOver) {
+
+document.getElementById("play-btn").addEventListener("click", function() {
+    gameStarted = true;
+    document.getElementById("start-screen").style.display = "none";
+
+    if (typeof startBackgroundSound === "function") {
+        startBackgroundSound();
+    }
+});
+
+function gameLoop() {
+    if (gameStarted && !gameOver) {
         updatePlayer();
         updateObstacles();
         updateParticles();
         updateCoins();
-        drawGame();
-        requestAnimationFrame(gameLoop);
     }
-    else{
-        drawGame();
+
+    drawGame();
+
+    if (gameStarted && gameOver) {
         drawGameOver();
     }
+
+    requestAnimationFrame(gameLoop);
 }
 gameLoop();
+
+
