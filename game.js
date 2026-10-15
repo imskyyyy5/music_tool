@@ -68,6 +68,27 @@ function spawnObstacle()
     };
     obstacles.push(obstacle);
 }
+function spawnObstaclePattern() {
+    const pattern = Math.floor(Math.random()*3);
+    if(pattern === 0)
+    {
+        spawnObstacle();
+        obstacles[obstacles.length-1].x +=100;
+        spawnObstacle();
+    }
+    else {
+        const height = Math.random() * 10 + 40;
+        const width = Math.random() * 10 + 25;
+
+        obstacles.push({
+            x: canvas.width,
+            y: groundY - height,
+            width: width,
+            height: height,
+            passed: false
+        });
+    }
+}
 function spawnCoin(){
     const coin={
         x: canvas.width,
@@ -147,8 +168,9 @@ function drawParticles(){
 function updateObstacles() {
     spawnTimer++;
     if(spawnTimer >= spawnInterval) {
-        spawnObstacle();
+        spawnObstaclePattern();
         spawnTimer=0;
+        spawnInterval = Math.floor(Math.random()*50)+80;
     }
     for(let i= obstacles.length -1; i>=0;i--){
         obstacles[i].x -= obstacleSpeed;
