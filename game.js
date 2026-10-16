@@ -46,17 +46,17 @@ document.addEventListener("keydown",function(event)
         }    
     }
 });
-function updatePlayer() {
-    player.velocityY += player.gravity;
-    player.y += player.velocityY;
+function updatePlayer(deltaTime) {
+    player.velocityY += player.gravity* deltaTime;
+    player.y += player.velocityY*deltaTime;
     if(player.y + player.height >= groundY) {
         player.y = groundY - player.height;
         player.velocityY = 0;
         player.onGround = true;
         player.jumps =0;
     }
-    distance += 0.1;
-    score +=0.1;
+    distance += 0.1*deltaTime;
+    score +=0.1*deltaTime;
 }
 
 
@@ -197,17 +197,18 @@ function drawParticles(){
     ctx.globalAlpha =1;
     ctx.shadowBlur =0;
 }
-function updateObstacles() {
-    obstacleSpeed = 3+ distance * 0.02;
-    spawnTimer++;
+function updateObstacles(deltaTime) {
+    obstacleSpeed = Math.min(2.5+ distance * 0.035,8);
+    spawnTimer+=deltaTime;
     if(spawnTimer >= spawnInterval) {
         spawnObstacle();
         spawnTimer=0;
-        spawnInterval = Math.max( 35,
-        Math.floor(Math.random()*30)+70 - Math.floor(distance/5));
+        spawnInterval = Math.max( 
+            30,
+            120 - Math.floor(distance*0.4));
     }
     for(let i= obstacles.length -1; i>=0;i--){
-        obstacles[i].x -= obstacleSpeed;
+        obstacles[i].x -= obstacleSpeed*deltaTime;
 
         if(checkCollision(player, obstacles[i])) {
             gameOver = true;
@@ -368,12 +369,17 @@ document.getElementById("play-btn").addEventListener("click", function() {
     }
 });
 
-function gameLoop() {
+let lastTime=0;
+
+function gameLoop(currentTime) {
+    const deltaTime = Math.min((currentTime - lastTime) / 16.67, 2);
+    lastTime = currentTime;
+
     if (gameStarted && !gameOver) {
-        updatePlayer();
-        updateObstacles();
-        updateParticles();
-        updateCoins();
+        updatePlayer(deltaTime);
+        updateObstacles(deltaTime);
+        updateParticles(deltaTime);
+        updateCoins(deltaTime);
     }
 
     drawGame();
@@ -384,6 +390,9 @@ function gameLoop() {
 
     requestAnimationFrame(gameLoop);
 }
-gameLoop();
+
+requestAnimationFrame(gameLoop);
+
+
 
 
